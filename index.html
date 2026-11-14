@@ -1,0 +1,449 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>OriginOS 7 Liquid Glass UI</title>
+<style>
+  :root {
+    --glass-bg: rgba(255, 255, 255, 0.08);
+    --glass-bg-strong: rgba(255, 255, 255, 0.14);
+    --glass-border: rgba(255, 255, 255, 0.38);
+    --glass-highlight: inset 0 1.5px 2px rgba(255, 255, 255, 0.65), inset 0 -1px 2px rgba(255, 255, 255, 0.18);
+    --glass-shadow: 0 14px 34px rgba(0, 0, 0, 0.28);
+    --blur: blur(28px) saturate(190%);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; user-select: none; -webkit-tap-highlight-color: transparent; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; }
+  body, html { width: 100vw; height: 100vh; overflow: hidden; color: #fff; background: #0b1021; }
+
+  /* Dynamic Refractive Wallpaper Layer */
+  .wallpaper {
+    position: fixed; inset: 0; z-index: 0;
+    background: radial-gradient(circle at 20% 20%, #ff4e8d 0%, transparent 45%),
+                radial-gradient(circle at 80% 30%, #3a86ff 0%, transparent 50%),
+                radial-gradient(circle at 50% 80%, #8338ec 0%, transparent 55%),
+                linear-gradient(160deg, #090d1a 0%, #121b38 50%, #0d1326 100%);
+    animation: bgShift 14s ease-in-out infinite alternate;
+  }
+  @keyframes bgShift {
+    0% { filter: hue-rotate(0deg) brightness(1); }
+    100% { filter: hue-rotate(18deg) brightness(1.08); }
+  }
+
+  /* Core OriginOS 7 Liquid Glass Material */
+  .liquid-glass {
+    background: var(--glass-bg);
+    backdrop-filter: var(--blur);
+    -webkit-backdrop-filter: var(--blur);
+    border: 1px solid var(--glass-border);
+    box-shadow: var(--glass-highlight), var(--glass-shadow);
+    border-radius: 26px;
+    position: relative;
+    overflow: hidden;
+  }
+  .liquid-glass::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none;
+    background: linear-gradient(135deg, rgba(255,255,255,0.28) 0%, rgba(255,255,255,0.03) 45%, rgba(255,255,255,0.12) 100%);
+  }
+
+  /* Status Bar & Control Center Handle */
+  .status-bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 44px; z-index: 50;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0 20px; font-size: 13px; font-weight: 600; letter-spacing: 0.3px;
+  }
+  .pull-pill {
+    width: 46px; height: 5px; border-radius: 10px;
+    background: rgba(255,255,255,0.55); box-shadow: 0 0 8px rgba(255,255,255,0.4);
+  }
+
+  /* Home Screen Layout */
+  #homeScreen {
+    position: relative; z-index: 10; width: 100%; height: 100%;
+    padding: 52px 18px 24px; display: flex; flex-direction: column; justify-content: space-between;
+  }
+
+  /* Top Clock & Weather Glass Widget */
+  .top-row { display: grid; grid-template-columns: 1.2fr 1fr; gap: 12px; }
+  .clock-card { padding: 16px; display: flex; flex-direction: column; justify-content: center; }
+  .clock-time { font-size: 34px; font-weight: 300; letter-spacing: -1px; line-height: 1; }
+  .clock-date { font-size: 12px; opacity: 0.8; margin-top: 6px; }
+  .weather-card { padding: 16px; display: flex; flex-direction: column; justify-content: space-between; }
+  .weather-temp { font-size: 24px; font-weight: 500; }
+  .weather-sub { font-size: 11px; opacity: 0.85; }
+
+  /* Heart Distance Connection Widget */
+  .distance-widget { padding: 18px 16px; margin-top: 12px; }
+  .widget-header { display: flex; justify-content: space-between; align-items: center; font-size: 11px; text-transform: uppercase; letter-spacing: 1px; opacity: 0.85; margin-bottom: 12px; }
+  .bridge-row { display: flex; align-items: center; justify-content: space-between; position: relative; gap: 6px; }
+  .person-box {
+    width: 34%; padding: 12px 8px; text-align: center; border-radius: 20px;
+    background: rgba(255,255,255,0.09); border: 1px solid rgba(255,255,255,0.3);
+    box-shadow: inset 0 1px 1px rgba(255,255,255,0.5); z-index: 2;
+  }
+  .person-label { font-size: 11px; opacity: 0.8; margin-bottom: 4px; }
+  .person-dist { font-size: 16px; font-weight: 700; }
+  .person-coord { font-size: 9px; opacity: 0.65; margin-top: 3px; }
+  .heart-center {
+    width: 52px; height: 52px; border-radius: 50%; z-index: 3;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255, 78, 141, 0.22); border: 1px solid rgba(255, 160, 200, 0.65);
+    box-shadow: 0 0 20px rgba(255, 78, 141, 0.55), inset 0 1px 2px rgba(255,255,255,0.8);
+    animation: heartPulse 2s infinite ease-in-out;
+  }
+  @keyframes heartPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.1); } }
+  .dotted-connector {
+    flex: 1; height: 2px;
+    background-image: linear-gradient(to right, rgba(255,255,255,0.85) 45%, rgba(255,255,255,0) 0%);
+    background-position: bottom; background-size: 8px 2px; background-repeat: repeat-x;
+  }
+
+  /* Home Screen Quick Notification Preview */
+  .section-title { font-size: 12px; font-weight: 600; opacity: 0.85; margin: 12px 4px 6px; display: flex; justify-content: space-between; }
+  .notif-stack { display: flex; flex-direction: column; gap: 8px; max-height: 150px; overflow-y: auto; }
+  .notif-card {
+    padding: 12px 14px; border-radius: 20px; display: flex; align-items: center; gap: 12px;
+  }
+  .notif-dot { width: 34px; height: 34px; border-radius: 12px; background: rgba(255,255,255,0.18); display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 14px; border: 1px solid rgba(255,255,255,0.4); flex-shrink: 0; }
+  .notif-body { flex: 1; overflow: hidden; }
+  .notif-title { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .notif-text { font-size: 12px; opacity: 0.85; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .notif-time { font-size: 10px; opacity: 0.65; }
+
+  /* Liquid Glass App Icon Grid */
+  .app-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px;
+    margin-top: auto; padding-top: 10px; max-height: 220px; overflow-y: auto;
+  }
+  .app-item { display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; }
+  .app-icon-glass {
+    width: 58px; height: 58px; border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(255,255,255,0.12);
+    backdrop-filter: blur(22px) saturate(180%);
+    -webkit-backdrop-filter: blur(22px) saturate(180%);
+    border: 1px solid rgba(255,255,255,0.45);
+    box-shadow: inset 0 1.5px 2px rgba(255,255,255,0.7), 0 8px 20px rgba(0,0,0,0.25);
+    font-size: 24px; overflow: hidden;
+  }
+  .app-icon-glass img { width: 36px; height: 36px; border-radius: 10px; }
+  .app-name { font-size: 11px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; width: 68px; text-shadow: 0 1px 3px rgba(0,0,0,0.6); }
+
+  /* Bottom Glass Dock */
+  .dock {
+    margin-top: 12px; padding: 12px 18px; border-radius: 28px;
+    display: flex; justify-content: space-around; align-items: center;
+  }
+
+  /* Control Center Overlay (Swipe Down / Tap Top Bar) */
+  #controlCenter {
+    position: fixed; inset: 0; z-index: 80;
+    background: rgba(8, 12, 26, 0.35);
+    backdrop-filter: blur(34px) saturate(200%);
+    -webkit-backdrop-filter: blur(34px) saturate(200%);
+    padding: 54px 18px 28px;
+    display: flex; flex-direction: column; gap: 14px;
+    transform: translateY(-105%); transition: transform 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  #controlCenter.open { transform: translateY(0); }
+  .cc-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  .cc-tile { padding: 14px 16px; display: flex; align-items: center; gap: 12px; cursor: pointer; }
+  .cc-tile.active { background: rgba(255,255,255,0.24); border-color: rgba(255,255,255,0.75); }
+  .slider-box { padding: 14px 16px; display: flex; align-items: center; gap: 12px; }
+  .slider-box input[type=range] { flex: 1; accent-color: #fff; }
+
+  /* Lock Screen Liquid Glass Overlay */
+  #lockScreen {
+    position: fixed; inset: 0; z-index: 90;
+    background: rgba(6, 10, 22, 0.22);
+    backdrop-filter: blur(24px) saturate(185%);
+    -webkit-backdrop-filter: blur(24px) saturate(185%);
+    padding: 72px 20px 36px;
+    display: flex; flex-direction: column; justify-content: space-between;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+  }
+  #lockScreen.hidden { opacity: 0; pointer-events: none; transform: scale(1.06); }
+  .lock-clock { text-align: center; }
+  .lock-clock h1 { font-size: 74px; font-weight: 200; letter-spacing: -2px; text-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .lock-clock p { font-size: 15px; opacity: 0.9; margin-top: 4px; }
+  .unlock-btn {
+    align-self: center; padding: 14px 34px; border-radius: 30px;
+    font-size: 14px; font-weight: 600; letter-spacing: 0.5px; cursor: pointer;
+  }
+  .btn-pill {
+    padding: 5px 10px; border-radius: 12px; font-size: 10px; font-weight: 600;
+    background: rgba(255,255,255,0.18); border: 1px solid rgba(255,255,255,0.45); color: #fff;
+  }
+</style>
+</head>
+<body>
+
+<div class="wallpaper"></div>
+
+<!-- Top Status Bar (Tap to open Control Center) -->
+<div class="status-bar" onclick="toggleControlCenter()">
+  <span id="statusTime">12:00</span>
+  <div class="pull-pill"></div>
+  <span id="batteryText">100% ⚡</span>
+</div>
+
+<!-- HOME SCREEN -->
+<div id="homeScreen">
+  <div>
+    <div class="top-row">
+      <div class="liquid-glass clock-card">
+        <div class="clock-time" id="homeTime">12:00</div>
+        <div class="clock-date" id="homeDate">Sunday, Nov 15</div>
+      </div>
+      <div class="liquid-glass weather-card" onclick="lockPhone()">
+        <div class="weather-temp">22°C ☁️</div>
+        <div class="weather-sub">Tap to preview Glass Lock Screen</div>
+      </div>
+    </div>
+
+    <!-- Heart Distance Widget (Left: Her, Center: Heart, Right: You) -->
+    <div class="liquid-glass distance-widget">
+      <div class="widget-header">
+        <span>Liquid Glass Distance Link</span>
+        <button class="btn-pill" onclick="setPartnerLocation()">Set Her GPS</button>
+      </div>
+      <div class="bridge-row">
+        <!-- Left Side: Her Distance -->
+        <div class="person-box">
+          <div class="person-label">Her</div>
+          <div class="person-dist" id="herDist">0.0 km</div>
+          <div class="person-coord" id="herStatus">Connected</div>
+        </div>
+
+        <div class="dotted-connector"></div>
+
+        <!-- Middle: Pulsing Heart -->
+        <div class="heart-center" onclick="refreshGPS()">
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="#ff4e8d" stroke="#fff" stroke-width="1.5">
+            <path d="M12 21.35l-1.45-1.32C5.4 15.36 2 12.28 2 8.5 2 5.42 4.42 3 7.5 3c1.74 0 3.41.81 4.5 2.09C13.09 3.81 14.76 3 16.5 3 19.58 3 22 5.42 22 8.5c0 3.78-3.4 6.86-8.55 11.54L12 21.35z"/>
+          </svg>
+        </div>
+
+        <div class="dotted-connector"></div>
+
+        <!-- Right Side: Your Distance -->
+        <div class="person-box">
+          <div class="person-label">You</div>
+          <div class="person-dist" id="myDist">0.0 km</div>
+          <div class="person-coord" id="myStatus">Live GPS</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Live Glass Notifications on Home Screen -->
+    <div class="section-title">
+      <span>Live Glass Notifications</span>
+      <button class="btn-pill" onclick="enableLiveNotifications()">Sync Phone Alerts</button>
+    </div>
+    <div class="notif-stack" id="homeNotifList"></div>
+  </div>
+
+  <!-- Installed Apps in Liquid Glass Squircles -->
+  <div class="app-grid" id="appGrid"></div>
+
+  <!-- Bottom Glass Dock -->
+  <div class="liquid-glass dock">
+    <div class="app-icon-glass" onclick="launchByKeyword('dialer')">📞</div>
+    <div class="app-icon-glass" onclick="launchByKeyword('messages')">💬</div>
+    <div class="app-icon-glass" onclick="toggleControlCenter()">🎛️</div>
+    <div class="app-icon-glass" onclick="lockPhone()">🔒</div>
+  </div>
+</div>
+
+<!-- LIQUID GLASS CONTROL CENTER & NOTIFICATION SHADE -->
+<div id="controlCenter">
+  <div style="display:flex; justify-content:space-between; align-items:center;">
+    <h2 style="font-weight:500; font-size:20px;">OriginOS Glass Center</h2>
+    <button class="btn-pill" onclick="toggleControlCenter()">Close ▲</button>
+  </div>
+
+  <div class="cc-grid">
+    <div class="liquid-glass cc-tile active" onclick="this.classList.toggle('active')">📶 <div><div style="font-size:13px;font-weight:600;">5G Data</div><div style="font-size:10px;opacity:0.7;">Connected</div></div></div>
+    <div class="liquid-glass cc-tile active" onclick="this.classList.toggle('active')">🛜 <div><div style="font-size:13px;font-weight:600;">Wi-Fi</div><div style="font-size:10px;opacity:0.7;">Active</div></div></div>
+    <div class="liquid-glass cc-tile" onclick="this.classList.toggle('active')">🔦 <div><div style="font-size:13px;font-weight:600;">Flashlight</div><div style="font-size:10px;opacity:0.7;">Tap to toggle</div></div></div>
+    <div class="liquid-glass cc-tile" onclick="lockPhone()">🔒 <div><div style="font-size:13px;font-weight:600;">Lock Screen</div><div style="font-size:10px;opacity:0.7;">Glass Mode</div></div></div>
+  </div>
+
+  <div class="liquid-glass slider-box">☀️ <input type="range" min="10" max="100" value="85"></div>
+  <div class="liquid-glass slider-box">🔊 <input type="range" min="0" max="100" value="70"></div>
+
+  <div class="section-title"><span>Control Panel Glass Notifications</span></div>
+  <div class="notif-stack" id="ccNotifList" style="max-height:260px;"></div>
+</div>
+
+<!-- LIQUID GLASS LOCK SCREEN OVERLAY -->
+<div id="lockScreen" class="hidden">
+  <div class="lock-clock">
+    <h1 id="lockTime">12:00</h1>
+    <p id="lockDate">Sunday, November 15</p>
+  </div>
+
+  <div>
+    <div class="section-title"><span>Lock Screen Notifications</span></div>
+    <div class="notif-stack" id="lockNotifList" style="max-height:280px;"></div>
+  </div>
+
+  <div class="liquid-glass unlock-btn" onclick="unlockPhone()">Swipe or Tap to Unlock Glass UI</div>
+</div>
+
+<script>
+  // 1. Live Clock & Battery
+  function updateClocks() {
+    const now = new Date();
+    const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const dateStr = now.toLocaleDateString([], { weekday: 'long', month: 'short', day: 'numeric' });
+    document.getElementById('statusTime').textContent = timeStr;
+    document.getElementById('homeTime').textContent = timeStr;
+    document.getElementById('lockTime').textContent = timeStr;
+    document.getElementById('homeDate').textContent = dateStr;
+    document.getElementById('lockDate').textContent = dateStr;
+  }
+  setInterval(updateClocks, 1000); updateClocks();
+
+  if (navigator.getBattery) {
+    navigator.getBattery().then(bat => {
+      const updateBat = () => document.getElementById('batteryText').textContent = Math.round(bat.level * 100) + '% ⚡';
+      updateBat(); bat.addEventListener('levelchange', updateBat);
+    });
+  }
+
+  // 2. Heart Distance GPS Calculator (Haversine Formula)
+  let myLat = 29.5971, myLon = 79.6591;
+  let partnerLat = parseFloat(localStorage.getItem('partnerLat') || '29.6100');
+  let partnerLon = parseFloat(localStorage.getItem('partnerLon') || '79.6700');
+
+  function calcDistanceKm(lat1, lon1, lat2, lon2) {
+    const R = 6371;
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+              Math.sin(dLon/2) * Math.sin(dLon/2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+
+  function updateDistanceUI() {
+    const d = calcDistanceKm(myLat, myLon, partnerLat, partnerLon);
+    const label = d < 1 ? Math.round(d * 1000) + ' m' : d.toFixed(2) + ' km';
+    document.getElementById('herDist').textContent = label;
+    document.getElementById('myDist').textContent = label;
+  }
+
+  function refreshGPS() {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(pos => {
+        myLat = pos.coords.latitude; myLon = pos.coords.longitude;
+        document.getElementById('myStatus').textContent = myLat.toFixed(3) + ', ' + myLon.toFixed(3);
+        updateDistanceUI();
+      }, () => updateDistanceUI(), { enableHighAccuracy: true });
+    } else { updateDistanceUI(); }
+  }
+
+  function setPartnerLocation() {
+    const input = prompt('Enter Partner Latitude,Longitude (example: 28.6139,77.2090):', partnerLat + ',' + partnerLon);
+    if (input && input.includes(',')) {
+      const parts = input.split(',');
+      partnerLat = parseFloat(parts[0]); partnerLon = parseFloat(parts[1]);
+      localStorage.setItem('partnerLat', partnerLat); localStorage.setItem('partnerLon', partnerLon);
+      document.getElementById('herStatus').textContent = partnerLat.toFixed(3) + ', ' + partnerLon.toFixed(3);
+      updateDistanceUI();
+    }
+  }
+  refreshGPS();
+
+  // 3. Shared Liquid Glass Notifications (Home, Control Center & Lock Screen)
+  let notifications = [
+    { app: 'W', title: 'Future GF ❤️', text: 'Tap Sync Phone Alerts to stream real notifications here!', time: 'Now' },
+    { app: 'O', title: 'OriginOS 7 Glass Engine', text: 'Refractive Lock Screen & Control Panel active.', time: '1m' }
+  ];
+
+  function renderNotifications() {
+    const html = notifications.map(n => `
+      <div class="liquid-glass notif-card">
+        <div class="notif-dot">${n.app}</div>
+        <div class="notif-body">
+          <div class="notif-title">${n.title}</div>
+          <div class="notif-text">${n.text}</div>
+        </div>
+        <div class="notif-time">${n.time}</div>
+      </div>
+    `).join('');
+    document.getElementById('homeNotifList').innerHTML = html;
+    document.getElementById('ccNotifList').innerHTML = html;
+    document.getElementById('lockNotifList').innerHTML = html;
+  }
+  renderNotifications();
+
+  // Called automatically by our Native Android NotificationListenerService
+  window.onAndroidNotifications = function(jsonStr) {
+    try {
+      const arr = JSON.parse(jsonStr);
+      if (arr && arr.length) { notifications = arr; renderNotifications(); }
+    } catch (e) {}
+  };
+
+  function enableLiveNotifications() {
+    if (window.AndroidBridge && window.AndroidBridge.openNotificationSettings) {
+      window.AndroidBridge.openNotificationSettings();
+    } else {
+      alert('Once installed as an APK in the next step, this button opens your Android Notification Permission screen!');
+    }
+  }
+
+  // 4. Liquid Glass Installed App Icons
+  const fallbackApps = [
+    { name: 'Phone', icon: '📞', pkg: 'dialer' },
+    { name: 'WhatsApp', icon: '🟢', pkg: 'com.whatsapp' },
+    { name: 'Instagram', icon: '📸', pkg: 'com.instagram.android' },
+    { name: 'Camera', icon: '📷', pkg: 'camera' },
+    { name: 'Chrome', icon: '🌐', pkg: 'com.android.chrome' },
+    { name: 'YouTube', icon: '▶️', pkg: 'com.google.android.youtube' },
+    { name: 'Settings', icon: '⚙️', pkg: 'com.android.settings' },
+    { name: 'Glass Lock', icon: '🔒', pkg: 'lock' }
+  ];
+
+  function loadApps() {
+    const grid = document.getElementById('appGrid');
+    if (window.AndroidBridge && window.AndroidBridge.getInstalledApps) {
+      try {
+        const apps = JSON.parse(window.AndroidBridge.getInstalledApps());
+        grid.innerHTML = apps.map(a => `
+          <div class="app-item" onclick="window.AndroidBridge.launchApp('${a.pkg}')">
+            <div class="app-icon-glass">${a.iconBase64 ? `<img src="data:image/png;base64,${a.iconBase64}">` : '✨'}</div>
+            <div class="app-name">${a.name}</div>
+          </div>
+        `).join('');
+        return;
+      } catch (e) {}
+    }
+    grid.innerHTML = fallbackApps.map(a => `
+      <div class="app-item" onclick="launchAppFallback('${a.pkg}')">
+        <div class="app-icon-glass">${a.icon}</div>
+        <div class="app-name">${a.name}</div>
+      </div>
+    `).join('');
+  }
+  function launchAppFallback(pkg) {
+    if (pkg === 'lock') { lockPhone(); return; }
+    if (window.AndroidBridge && window.AndroidBridge.launchApp) window.AndroidBridge.launchApp(pkg);
+  }
+  function launchByKeyword(kw) {
+    if (window.AndroidBridge && window.AndroidBridge.launchByKeyword) window.AndroidBridge.launchByKeyword(kw);
+  }
+  loadApps();
+
+  // 5. Control Center & Lock Screen Toggles
+  function toggleControlCenter() { document.getElementById('controlCenter').classList.toggle('open'); }
+  function lockPhone() {
+    document.getElementById('controlCenter').classList.remove('open');
+    document.getElementById('lockScreen').classList.remove('hidden');
+  }
+  function unlockPhone() { document.getElementById('lockScreen').classList.add('hidden'); }
+</script>
+</body>
+</html>
