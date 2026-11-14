@@ -1,0 +1,283 @@
+name: Build Liquid Glass APK
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Compile and Sign Android APK
+        run: |
+          set -e
+          PLATFORM_JAR=$(ls -d $ANDROID_HOME/platforms/android-* | sort -V | tail -n 1)/android.jar
+          BUILD_TOOLS=$(ls -d $ANDROID_HOME/build-tools/* | sort -V | tail -n 1)
+
+          mkdir -p src/com/liquidglass/ui assets res/values obj bin
+          cp index.html assets/index.html
+
+          cat << 'EOF' > AndroidManifest.xml
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+              package="com.liquidglass.ui"
+              android:versionCode="1"
+              android:versionName="1.0">
+
+              <uses-sdk android:minSdkVersion="26" android:targetSdkVersion="34" />
+              <uses-permission android:name="android.permission.INTERNET" />
+              <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+              <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+              <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" />
+
+              <application
+                  android:label="Liquid Glass UI"
+                  android:hardwareAccelerated="true"
+                  android:theme="@android:style/Theme.DeviceDefault.NoActionBar">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true"
+                      android:launchMode="singleTask"
+                      android:showWhenLocked="true"
+                      android:turnScreenOn="true"
+                      android:configChanges="orientation|screenSize|keyboardHidden">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN" />
+                          <category android:name="android.intent.category.LAUNCHER" />
+                          <category android:name="android.intent.category.HOME" />
+                          <category android:name="android.intent.category.DEFAULT" />
+                      </intent-filter>
+                  </activity>
+
+                  <service
+                      android:name=".GlassNotifService"
+                      android:label="Liquid Glass Notifications"
+                      android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.service.notification.NotificationListenerService" />
+                      </intent-filter>
+                  </service>
+              </application>
+          </manifest>
+          EOF
+
+          cat << 'EOF' > src/com/liquidglass/ui/GlassNotifService.java
+          package com.liquidglass.ui;
+
+          import android.app.Notification;
+          import android.os.Bundle;
+          import android.service.notification.NotificationListenerService;
+          import android.service.notification.StatusBarNotification;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+
+          public class GlassNotifService extends NotificationListenerService {
+              public static String latestJson = "[]";
+
+              @Override
+              public void onListenerConnected() {
+                  refreshAlerts();
+              }
+
+              @Override
+              public void onNotificationPosted(StatusBarNotification sbn) {
+                  refreshAlerts();
+              }
+
+              @Override
+              public void onNotificationRemoved(StatusBarNotification sbn) {
+                  refreshAlerts();
+              }
+
+              private void refreshAlerts() {
+                  try {
+                      StatusBarNotification[] list = getActiveNotifications();
+                      JSONArray arr = new JSONArray();
+                      if (list != null) {
+                          int count = Math.min(list.length, 10);
+                          for (int i = 0; i < count; i++) {
+                              StatusBarNotification sbn = list[i];
+                              Bundle extras = sbn.getNotification().extras;
+                              String title = extras.getString(Notification.EXTRA_TITLE, sbn.getPackageName());
+                              CharSequence textCs = extras.getCharSequence(Notification.EXTRA_TEXT);
+                              String text = textCs != null ? textCs.toString() : "New notification";
+                              String pkg = sbn.getPackageName();
+                              String badge = pkg.length() > 0 ? pkg.substring(0, 1).toUpperCase() : "N";
+
+                              JSONObject obj = new JSONObject();
+                              obj.put("app", badge);
+                              obj.put("title", title);
+                              obj.put("text", text);
+                              obj.put("time", "Live");
+                              arr.put(obj);
+                          }
+                      }
+                      latestJson = arr.toString();
+                      MainActivity.pushNotificationsToWeb();
+                  } catch (Exception ignored) {}
+              }
+          }
+          EOF
+
+          cat << 'EOF' > src/com/liquidglass/ui/MainActivity.java
+          package com.liquidglass.ui;
+
+          import android.Manifest;
+          import android.app.Activity;
+          import android.content.Intent;
+          import android.content.pm.PackageManager;
+          import android.content.pm.ResolveInfo;
+          import android.graphics.Bitmap;
+          import android.graphics.Canvas;
+          import android.graphics.drawable.Drawable;
+          import android.os.Build;
+          import android.os.Bundle;
+          import android.provider.MediaStore;
+          import android.util.Base64;
+          import android.view.WindowManager;
+          import android.webkit.GeolocationPermissions;
+          import android.webkit.JavascriptInterface;
+          import android.webkit.WebChromeClient;
+          import android.webkit.WebSettings;
+          import android.webkit.WebView;
+          import android.webkit.WebViewClient;
+          import org.json.JSONArray;
+          import org.json.JSONObject;
+          import java.io.ByteArrayOutputStream;
+          import java.util.List;
+
+          public class MainActivity extends Activity {
+              private static WebView staticWebView;
+
+              @Override
+              protected void onCreate(Bundle savedInstanceState) {
+                  super.onCreate(savedInstanceState);
+                  getWindow().addFlags(WindowManager.LayoutParams.FLAG_SHOW_WHEN_LOCKED
+                          | WindowManager.LayoutParams.FLAG_TURN_SCREEN_ON
+                          | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS);
+
+                  if (Build.VERSION.SDK_INT >= 23) {
+                      requestPermissions(new String[]{
+                          Manifest.permission.ACCESS_FINE_LOCATION,
+                          Manifest.permission.ACCESS_COARSE_LOCATION
+                      }, 101);
+                  }
+
+                  WebView webView = new WebView(this);
+                  staticWebView = webView;
+                  WebSettings s = webView.getSettings();
+                  s.setJavaScriptEnabled(true);
+                  s.setDomStorageEnabled(true);
+                  s.setGeolocationEnabled(true);
+
+                  webView.setWebViewClient(new WebViewClient() {
+                      @Override
+                      public void onPageFinished(WebView view, String url) {
+                          pushNotificationsToWeb();
+                      }
+                  });
+                  webView.setWebChromeClient(new WebChromeClient() {
+                      @Override
+                      public void onGeolocationPermissionsShowPrompt(String origin, GeolocationPermissions.Callback callback) {
+                          callback.invoke(origin, true, false);
+                      }
+                  });
+
+                  webView.addJavascriptInterface(new AndroidBridge(), "AndroidBridge");
+                  webView.loadUrl("file:///android_asset/index.html");
+                  setContentView(webView);
+              }
+
+              public static void pushNotificationsToWeb() {
+                  if (staticWebView != null) {
+                      staticWebView.post(() -> {
+                          String safe = JSONObject.quote(GlassNotifService.latestJson);
+                          staticWebView.evaluateJavascript("if(window.onAndroidNotifications) window.onAndroidNotifications(" + safe + ");", null);
+                      });
+                  }
+              }
+
+              public class AndroidBridge {
+                  @JavascriptInterface
+                  public String getInstalledApps() {
+                      JSONArray arr = new JSONArray();
+                      try {
+                          PackageManager pm = getPackageManager();
+                          Intent main = new Intent(Intent.ACTION_MAIN, null);
+                          main.addCategory(Intent.CATEGORY_LAUNCHER);
+                          List<ResolveInfo> list = pm.queryIntentActivities(main, 0);
+                          int max = Math.min(list.size(), 24);
+                          for (int i = 0; i < max; i++) {
+                              ResolveInfo ri = list.get(i);
+                              String pkg = ri.activityInfo.packageName;
+                              String label = ri.loadLabel(pm).toString();
+                              Drawable d = ri.loadIcon(pm);
+                              Bitmap bmp = Bitmap.createBitmap(72, 72, Bitmap.Config.ARGB_8888);
+                              Canvas c = new Canvas(bmp);
+                              d.setBounds(0, 0, 72, 72);
+                              d.draw(c);
+                              ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                              bmp.compress(Bitmap.CompressFormat.PNG, 80, bos);
+                              String b64 = Base64.encodeToString(bos.toByteArray(), Base64.NO_WRAP);
+
+                              JSONObject obj = new JSONObject();
+                              obj.put("name", label);
+                              obj.put("pkg", pkg);
+                              obj.put("iconBase64", b64);
+                              arr.put(obj);
+                          }
+                      } catch (Exception ignored) {}
+                      return arr.toString();
+                  }
+
+                  @JavascriptInterface
+                  public void launchApp(String pkg) {
+                      try {
+                          Intent i = getPackageManager().getLaunchIntentForPackage(pkg);
+                          if (i != null) startActivity(i);
+                      } catch (Exception ignored) {}
+                  }
+
+                  @JavascriptInterface
+                  public void launchByKeyword(String kw) {
+                      try {
+                          if ("dialer".equals(kw)) {
+                              startActivity(new Intent(Intent.ACTION_DIAL));
+                          } else if ("messages".equals(kw)) {
+                              Intent i = new Intent(Intent.ACTION_MAIN);
+                              i.addCategory(Intent.CATEGORY_APP_MESSAGING);
+                              startActivity(i);
+                          } else if ("camera".equals(kw)) {
+                              startActivity(new Intent(MediaStore.INTENT_ACTION_STILL_IMAGE_CAMERA));
+                          }
+                      } catch (Exception ignored) {}
+                  }
+
+                  @JavascriptInterface
+                  public void openNotificationSettings() {
+                      try {
+                          startActivity(new Intent("android.settings.ACTION_NOTIFICATION_LISTENER_SETTINGS"));
+                      } catch (Exception ignored) {}
+                  }
+              }
+          }
+          EOF
+
+          $BUILD_TOOLS/aapt package -f -m -J src -M AndroidManifest.xml -A assets -I "$PLATFORM_JAR" -F bin/unaligned.apk
+          javac -source 8 -target 8 -cp "$PLATFORM_JAR" -d obj src/com/liquidglass/ui/*.java
+          $BUILD_TOOLS/d8 --lib "$PLATFORM_JAR" --output bin obj/com/liquidglass/ui/*.class
+          (cd bin && zip -u unaligned.apk classes.dex)
+          $BUILD_TOOLS/zipalign -f 4 bin/unaligned.apk bin/aligned.apk
+          keytool -genkeypair -v -keystore debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+          $BUILD_TOOLS/apksigner sign --ks debug.keystore --ks-pass pass:android --key-pass pass:android --out LiquidGlassUI.apk bin/aligned.apk
+
+      - name: Upload Downloadable APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: LiquidGlassUI-APK
+          path: LiquidGlassUI.apk
